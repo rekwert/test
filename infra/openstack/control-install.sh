@@ -19,10 +19,22 @@ case "$CODENAME" in
     systemctl enable --now snapd.socket
     sleep 5
     snap install openstack --channel=2024.1/stable || snap install openstack
-    sunbeam prepare-node-script --bootstrap | bash -x
-    export PATH="/snap/bin:$PATH"
-    sunbeam cluster bootstrap --accept-defaults
-    sunbeam configure --accept-defaults --openrc /root/demo-openrc
+
+    # Sunbeam prepare-node-script refuses to run as root (by design).
+    SUNBEAM_USER="${SUNBEAM_USER:-sunbeam}"
+    if ! id "$SUNBEAM_USER" &>/dev/null; then
+      useradd -m -s /bin/bash "$SUNBEAM_USER"
+      usermod -aG sudo "$SUNBEAM_USER"
+    fi
+
+    SUNBEAM_HOME="$(getent passwd "$SUNBEAM_USER" | cut -d: -f6)"
+    OPENRC="$SUNBEAM_HOME/demo-openrc"
+
+    su - "$SUNBEAM_USER" -c 'export PATH="/snap/bin:$PATH"; sunbeam prepare-node-script --bootstrap | bash -x'
+    su - "$SUNBEAM_USER" -c 'export PATH="/snap/bin:$PATH"; sg snap_daemon -c "sunbeam cluster bootstrap --accept-defaults"'
+    su - "$SUNBEAM_USER" -c "export PATH=\"/snap/bin:\$PATH\"; sunbeam configure --accept-defaults --openrc \"$OPENRC\""
+
+    install -m 600 "$OPENRC" /root/demo-openrc
     # shellcheck disable=SC1091
     source /root/demo-openrc
     bash "$SCRIPT_DIR/bootstrap-dev.sh" | tee /root/openstack-bootstrap.log

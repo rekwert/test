@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One-shot OpenStack control install on fresh Ubuntu 22.04 bare metal.
+# One-shot OpenStack control install on fresh Ubuntu 24.04 bare metal (Sunbeam).
+# Ubuntu 22.04 falls back to MicroStack via control-install.sh.
 # Usage (as root):
 #   curl -fsSL https://raw.githubusercontent.com/rekwert/test/main/infra/openstack/first-boot.sh | bash
 # Or after git clone:
