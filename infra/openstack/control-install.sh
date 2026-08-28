@@ -33,7 +33,7 @@ case "$CODENAME" in
     chmod +x "$RUN_AS"
 
     # Do NOT use su -c: snap/sunbeam needs a real user session (systemd + DBus).
-    "$RUN_AS" 'sunbeam prepare-node-script --bootstrap | bash -x'
+    "$RUN_AS" 'bash /opt/openstack-portal/infra/openstack/sunbeam-prepare.sh'
     "$RUN_AS" 'sunbeam cluster bootstrap --accept-defaults'
     "$RUN_AS" "sunbeam configure --accept-defaults --openrc \"$OPENRC\""
 
