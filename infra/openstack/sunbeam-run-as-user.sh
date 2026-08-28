@@ -42,7 +42,7 @@ $CMD
 EOF
   chown "${SUNBEAM_USER}:${SUNBEAM_USER}" "$WRAP"
   chmod 700 "$WRAP"
-  /usr/bin/machinectl shell "${SUNBEAM_USER}@" "$WRAP"
+  /usr/bin/machinectl shell "${SUNBEAM_USER}@" /bin/bash "$WRAP"
   rm -f "$WRAP"
 else
   # Fallback: localhost SSH with key (no sunbeam password).
