@@ -1,0 +1,3 @@
+-- Field-level encryption for root_password and ip_ssh_host_keys private keys
+-- is applied in application code (VPS_FIELD_ENCRYPTION_KEY). Legacy plaintext
+-- rows are re-sealed on startup by the vps worker.

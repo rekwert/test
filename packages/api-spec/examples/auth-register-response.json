@@ -1,0 +1,13 @@
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
+  "refresh_token": "a1b2c3d4e5f6789012345678901234567890abcdef",
+  "expires_at": "2026-07-02T12:00:00Z",
+  "token_type": "Bearer",
+  "user": {
+    "id": "22222222-2222-2222-2222-222222222201",
+    "email": "dev@test.com",
+    "roles": ["client"],
+    "email_verified": false,
+    "locale": "ru"
+  }
+}

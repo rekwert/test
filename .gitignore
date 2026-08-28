@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.local
+.env.*.local
+infra/docker/.env
+infra/docker/.env.local
+infra/docker/.env.probe
+infra/docker/.env.purge
+.env.probe
+.env.purge
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Ops secrets (never commit)
+infra/docker/ops-known_hosts
+infra/scripts/tmp-*
+*.bundle
+*redacted*.log
+smtp-*.log
+
+# Generated Traefik dynamic config
+infra/docker/traefik/dynamic/back-api.yml

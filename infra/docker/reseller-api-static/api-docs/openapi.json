@@ -1,0 +1,228 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cloud Hustle Reseller API",
+    "version": "1.0.0",
+    "description": "HTTP API для реселлеров и автоматизации: баланс, каталог, заказ и управление VPS. Базовый URL: https://api.cloud-hustle.com/api/v1"
+  },
+  "servers": [{ "url": "https://api.cloud-hustle.com/api/v1" }],
+  "tags": [
+    { "name": "account", "x-title": "Аккаунт", "description": "Информация о текущем пользователе API-ключа." },
+    { "name": "billing", "x-title": "Биллинг", "description": "Баланс и операции с оплатой." },
+    { "name": "catalog", "x-title": "Каталог", "description": "Публичные справочники: тарифы, регионы, ОС и ПО. Авторизация не требуется." },
+    { "name": "orders", "x-title": "Заказы", "description": "Создание VPS и списание с баланса." },
+    { "name": "instances", "x-title": "Серверы", "description": "Список, просмотр и удаление виртуальных машин." },
+    { "name": "power", "x-title": "Питание", "description": "Запуск, остановка и перезагрузка VPS." }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Ключ формата ch_live_… Выдаётся администратором или через @cloudhustle_support. Можно передать также как Authorization: Bearer ch_live_…"
+      }
+    },
+    "parameters": {
+      "InstanceId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "UUID или slug сервера (например vps-abc123)"
+      }
+    }
+  },
+  "security": [{ "ApiKeyAuth": [] }],
+  "paths": {
+    "/auth/me": {
+      "get": {
+        "tags": ["account"],
+        "summary": "Текущий аккаунт",
+        "description": "Возвращает профиль владельца API-ключа: email, роли, локаль и активные scopes ключа.",
+        "responses": {
+          "200": { "description": "Профиль пользователя" },
+          "401": { "description": "Ключ не передан или недействителен" }
+        }
+      }
+    },
+    "/billing/balance": {
+      "get": {
+        "tags": ["billing"],
+        "summary": "Баланс аккаунта",
+        "description": "Текущий баланс в валюте аккаунта. Требуется scope billing.read.",
+        "responses": {
+          "200": { "description": "Объект с полями balance и currency" },
+          "401": { "description": "Нет авторизации" },
+          "403": { "description": "У ключа нет scope billing.read" }
+        }
+      }
+    },
+    "/plans": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Список тарифов",
+        "description": "Активные тарифы VPS с ценой, CPU/RAM/диском и флагом available по региону. Публичный метод.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "product_type",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["dedicated"] },
+            "description": "dedicated — только выделенные серверы"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Массив plans[]" }
+        }
+      }
+    },
+    "/catalog": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Полный каталог",
+        "description": "Шаблоны ОС и профили ПО для заказа. Публичный метод.",
+        "security": [],
+        "responses": { "200": { "description": "Каталог os_templates и software_profiles" } }
+      }
+    },
+    "/catalog/regions": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Регионы",
+        "description": "Доступные регионы размещения с признаком доступности. Публичный метод.",
+        "security": [],
+        "responses": { "200": { "description": "Массив regions[]" } }
+      }
+    },
+    "/catalog/os": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Шаблоны ОС",
+        "description": "Список операционных систем для заказа. Публичный метод.",
+        "security": [],
+        "responses": { "200": { "description": "Массив os_templates[]" } }
+      }
+    },
+    "/catalog/os/{os_id}/software": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "ПО для выбранной ОС",
+        "description": "Профили предустановленного ПО, совместимые с указанной ОС. Публичный метод.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "os_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID шаблона ОС из /catalog/os"
+          }
+        ],
+        "responses": { "200": { "description": "Массив software_profiles[]" } }
+      }
+    },
+    "/orders": {
+      "post": {
+        "tags": ["orders"],
+        "summary": "Создать VPS",
+        "description": "Создаёт заказ, списывает оплату с баланса и запускает provisioning. Требуется scope vps.write и подтверждённый email.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plan_id", "os_template_id"],
+                "properties": {
+                  "plan_id": { "type": "string", "description": "ID тарифа из /plans" },
+                  "region": { "type": "string", "description": "Код региона, например nl, de, gb", "default": "nl" },
+                  "hostname": { "type": "string", "description": "Имя хоста (опционально)" },
+                  "root_password": { "type": "string", "minLength": 8, "description": "Пароль root; если не указан — генерируется" },
+                  "os_template_id": { "type": "string", "description": "ID ОС из каталога" },
+                  "software_profile_id": { "type": "string", "default": "clean", "description": "Профиль ПО" },
+                  "period_months": { "type": "integer", "default": 1, "description": "Период оплаты в месяцах" },
+                  "ssh_key_ids": { "type": "array", "items": { "type": "string" }, "description": "ID SSH-ключей из ЛК" },
+                  "extra_ipv4_qty": { "type": "integer", "description": "Дополнительные IPv4" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Заказ создан: order_id, instance_id, amount_charged, status" },
+          "402": { "description": "Недостаточно средств на балансе" },
+          "403": { "description": "Нет scope vps.write или email не подтверждён" }
+        }
+      }
+    },
+    "/instances": {
+      "get": {
+        "tags": ["instances"],
+        "summary": "Список серверов",
+        "description": "Пагинированный список VPS аккаунта. Требуется scope vps.read.",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 }, "description": "Максимум записей" },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Смещение" }
+        ],
+        "responses": {
+          "200": { "description": "Список instances[] и total" },
+          "403": { "description": "Нет scope vps.read" }
+        }
+      }
+    },
+    "/instances/{id}": {
+      "get": {
+        "tags": ["instances"],
+        "summary": "Информация о сервере",
+        "description": "Детали одной VPS по UUID или slug. Требуется scope vps.read.",
+        "parameters": [{ "$ref": "#/components/parameters/InstanceId" }],
+        "responses": {
+          "200": { "description": "Объект instance" },
+          "404": { "description": "Сервер не найден" }
+        }
+      },
+      "delete": {
+        "tags": ["instances"],
+        "summary": "Удалить сервер",
+        "description": "Удаление VPS и постановка задачи destroy у провайдера. Требуется scope vps.manage.",
+        "parameters": [{ "$ref": "#/components/parameters/InstanceId" }],
+        "responses": {
+          "200": { "description": "Удалено (dedicated / без external id)" },
+          "202": { "description": "Destroy поставлен в очередь" },
+          "403": { "description": "Нет scope vps.manage" }
+        }
+      }
+    },
+    "/instances/{id}/start": {
+      "post": {
+        "tags": ["power"],
+        "summary": "Включить сервер",
+        "description": "Подать питание на VPS. Требуется scope vps.manage. Недоступно при блокировке или provisioning.",
+        "parameters": [{ "$ref": "#/components/parameters/InstanceId" }],
+        "responses": {
+          "200": { "description": "Команда выполнена, ok: true" },
+          "409": { "description": "Сервер занят или заблокирован" }
+        }
+      }
+    },
+    "/instances/{id}/stop": {
+      "post": {
+        "tags": ["power"],
+        "summary": "Выключить сервер",
+        "description": "Остановить VPS. Требуется scope vps.manage.",
+        "parameters": [{ "$ref": "#/components/parameters/InstanceId" }],
+        "responses": { "200": { "description": "Команда выполнена" } }
+      }
+    },
+    "/instances/{id}/reboot": {
+      "post": {
+        "tags": ["power"],
+        "summary": "Перезагрузить сервер",
+        "description": "Перезагрузка VPS. Требуется scope vps.manage.",
+        "parameters": [{ "$ref": "#/components/parameters/InstanceId" }],
+        "responses": { "200": { "description": "Команда выполнена" } }
+      }
+    }
+  }
+}

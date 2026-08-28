@@ -1,0 +1,11 @@
+# Shell scripts must always be LF UTF-8 — UTF-16/CRLF breaks bash on Linux VPS
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Deploy helpers
+infra/scripts/** text eol=lf
+
+# Traefik templates — UTF-16 breaks envsubst (Host(${DOMAIN}) not replaced -> 404)
+*.yml.tpl text eol=lf
+*.yaml.tpl text eol=lf
+infra/docker/traefik/** text eol=lf

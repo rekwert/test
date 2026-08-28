@@ -1,0 +1,3 @@
+# Hypervisor host keys for ops scripts (load-ops-env.sh).
+# Populate after first connect: ssh-keyscan -H <HV_IP> >> infra/docker/ops-known_hosts
+# chmod 600 infra/docker/ops-known_hosts

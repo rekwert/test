@@ -1,0 +1,34 @@
+{
+  "os_templates": [
+    { "id": "ubuntu-24.04", "name": "Ubuntu", "version": "24.04 LTS", "family": "debian" },
+    { "id": "debian-12", "name": "Debian", "version": "12", "family": "debian" },
+    { "id": "alma-9", "name": "Alma Linux", "version": "9", "family": "rhel" },
+    { "id": "freebsd-13", "name": "FreeBSD", "version": "13", "family": "freebsd" },
+    { "id": "noos", "name": "NoOS", "version": "", "family": "none" }
+  ],
+  "software_profiles": [
+    {
+      "id": "clean",
+      "name": "Clean OS",
+      "description": "Minimal OS install",
+      "labels": { "ru": "Чистая ОС", "en": "Clean OS" }
+    },
+    {
+      "id": "3x-ui",
+      "name": "3X-UI",
+      "description": "3X-UI panel (Xray)",
+      "labels": { "ru": "3X-UI (Xray)", "en": "3X-UI (Xray)" }
+    },
+    {
+      "id": "python3",
+      "name": "Python 3",
+      "description": "Python 3 + pip + venv",
+      "labels": { "ru": "Python 3", "en": "Python 3" }
+    }
+  ],
+  "software_by_os_example": {
+    "ubuntu-24.04": ["clean", "3x-ui", "python3"],
+    "freebsd-13": ["clean", "python3"],
+    "noos": ["clean"]
+  }
+}

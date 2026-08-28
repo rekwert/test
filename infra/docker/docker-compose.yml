@@ -1,0 +1,319 @@
+services:
+  traefik:
+    profiles:
+      - proxy
+    image: traefik:v3.4
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=docker_vps-net
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - vps-net
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=docker_vps-net
+      - traefik.http.routers.web.entrypoints=web
+      - traefik.http.routers.web.rule=PathPrefix(`/`)
+      - traefik.http.routers.web.priority=1
+      - traefik.http.services.web.loadbalancer.server.port=3000
+    ports:
+      - "3000:3000"
+    networks:
+      - vps-net
+    depends_on:
+      - gateway
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: apps/gateway/Dockerfile
+    environment:
+      GATEWAY_PORT: "8080"
+      AUTH_SERVICE_URL: http://auth:8001
+      BILLING_SERVICE_URL: http://billing:8002
+      VPS_SERVICE_URL: http://vps:8003
+      NOTIFICATION_SERVICE_URL: http://notification:8004
+      SUPPORT_SERVICE_URL: http://support:8005
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      CORS_ORIGINS: http://localhost,http://localhost:3000,http://localhost:3001
+      REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_DEFAULT: "300"
+      RATE_LIMIT_SENSITIVE: "15"
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgres://vps:vps@postgres:5432/vps?sslmode=disable}
+      GATEWAY_PUBLIC_PORT: "80"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=docker_vps-net
+      - traefik.http.routers.gateway.entrypoints=web
+      - traefik.http.routers.gateway.rule=PathPrefix(`/api`)
+      - traefik.http.routers.gateway.priority=10
+      - traefik.http.services.gateway.loadbalancer.server.port=8080
+    networks:
+      - vps-net
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth
+      - billing
+      - vps
+      - notification
+      - support
+
+  auth:
+    build:
+      context: ../..
+      dockerfile: services/auth/Dockerfile
+    environment:
+      PORT: "8001"
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      REDIS_URL: redis://redis:6379/0
+      NOTIFICATION_SERVICE_URL: http://notification:8004
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-dev-internal-token}
+      REFERRAL_BASE_URL: ${REFERRAL_BASE_URL:-http://localhost:3000}
+      REGISTRATION_PROMO_LIMIT: ${REGISTRATION_PROMO_LIMIT:-200}
+      REGISTRATION_PROMO_BONUS_RUB: ${REGISTRATION_PROMO_BONUS_RUB:-500}
+      REGISTRATION_PROMO_STARTED_AT: ${REGISTRATION_PROMO_STARTED_AT:-2026-08-02}
+      BLOCKED_EMAIL_DOMAINS: ${BLOCKED_EMAIL_DOMAINS:-proton.me,protonmail.com,protonmail.ch,pm.me}
+    networks:
+      - vps-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification:
+        condition: service_started
+
+  billing:
+    build:
+      context: ../..
+      dockerfile: services/billing/Dockerfile
+    environment:
+      PORT: "8002"
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      BILLING_MOCK: ${BILLING_MOCK:-true}
+      NOTIFICATION_SERVICE_URL: http://notification:8004
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-dev-internal-token}
+    networks:
+      - vps-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  billing-worker:
+    build:
+      context: ../..
+      dockerfile: services/billing/Dockerfile
+    command: ["/worker"]
+    environment:
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      BILLING_MOCK: ${BILLING_MOCK:-true}
+      DUNNING_GRACE_HOURS: ${DUNNING_GRACE_HOURS:-12}
+      DUNNING_DELETE_DAYS: ${DUNNING_DELETE_DAYS:-3}
+      BILLING_DUNNING_INTERVAL: ${BILLING_DUNNING_INTERVAL:-15m}
+      BILLING_CHARGE_INTERVAL: ${BILLING_CHARGE_INTERVAL:-15m}
+      NOTIFICATION_SERVICE_URL: http://notification:8004
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-dev-internal-token}
+    networks:
+      - vps-net
+    depends_on:
+      - billing
+
+  vps:
+    build:
+      context: ../..
+      dockerfile: services/vps/Dockerfile
+    environment:
+      PORT: "8003"
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      VPS_FIELD_ENCRYPTION_KEY: ${VPS_FIELD_ENCRYPTION_KEY:-01234567890123456789012345678901}
+      HYPERVISOR_PROVIDER: ${HYPERVISOR_PROVIDER:-openstack}
+      OPENSTACK_USE_MOCK: ${OPENSTACK_USE_MOCK:-true}
+      OPENSTACK_AUTH_URL: ${OPENSTACK_AUTH_URL:-}
+      OPENSTACK_REGION: ${OPENSTACK_REGION:-RegionOne}
+      OPENSTACK_USERNAME: ${OPENSTACK_USERNAME:-}
+      OPENSTACK_PASSWORD: ${OPENSTACK_PASSWORD:-}
+      OPENSTACK_PROJECT_NAME: ${OPENSTACK_PROJECT_NAME:-}
+      OPENSTACK_DOMAIN_NAME: ${OPENSTACK_DOMAIN_NAME:-Default}
+      OPENSTACK_INSECURE_TLS: ${OPENSTACK_INSECURE_TLS:-true}
+      OPENSTACK_NETWORK_ID: ${OPENSTACK_NETWORK_ID:-}
+      OPENSTACK_FLOATING_NETWORK_ID: ${OPENSTACK_FLOATING_NETWORK_ID:-}
+      OPENSTACK_PLAN_MAP: ${OPENSTACK_PLAN_MAP:-11111111-1111-1111-1111-111111111101:m1.small}
+      OPENSTACK_OS_MAP: ${OPENSTACK_OS_MAP:-ubuntu-22.04:ubuntu-22.04}
+      OPENSTACK_PROVISION_REGIONS: ${OPENSTACK_PROVISION_REGIONS:-nl,fi,de,gb}
+      OPENSTACK_NODE_MAP: ${OPENSTACK_NODE_MAP:-}
+      OPENSTACK_HV_MAP: ${OPENSTACK_HV_MAP:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - vps-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  vps-worker:
+    build:
+      context: ../..
+      dockerfile: services/vps/Dockerfile
+    command: ["/worker"]
+    environment:
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      VPS_FIELD_ENCRYPTION_KEY: ${VPS_FIELD_ENCRYPTION_KEY:-01234567890123456789012345678901}
+      HYPERVISOR_PROVIDER: ${HYPERVISOR_PROVIDER:-openstack}
+      OPENSTACK_USE_MOCK: ${OPENSTACK_USE_MOCK:-true}
+      OPENSTACK_AUTH_URL: ${OPENSTACK_AUTH_URL:-}
+      OPENSTACK_REGION: ${OPENSTACK_REGION:-RegionOne}
+      OPENSTACK_USERNAME: ${OPENSTACK_USERNAME:-}
+      OPENSTACK_PASSWORD: ${OPENSTACK_PASSWORD:-}
+      OPENSTACK_PROJECT_NAME: ${OPENSTACK_PROJECT_NAME:-}
+      OPENSTACK_DOMAIN_NAME: ${OPENSTACK_DOMAIN_NAME:-Default}
+      OPENSTACK_INSECURE_TLS: ${OPENSTACK_INSECURE_TLS:-true}
+      OPENSTACK_NETWORK_ID: ${OPENSTACK_NETWORK_ID:-}
+      OPENSTACK_FLOATING_NETWORK_ID: ${OPENSTACK_FLOATING_NETWORK_ID:-}
+      OPENSTACK_PLAN_MAP: ${OPENSTACK_PLAN_MAP:-11111111-1111-1111-1111-111111111101:m1.small}
+      OPENSTACK_OS_MAP: ${OPENSTACK_OS_MAP:-ubuntu-22.04:ubuntu-22.04}
+      OPENSTACK_PROVISION_REGIONS: ${OPENSTACK_PROVISION_REGIONS:-nl,fi,de,gb}
+      OPENSTACK_NODE_MAP: ${OPENSTACK_NODE_MAP:-}
+      OPENSTACK_HV_MAP: ${OPENSTACK_HV_MAP:-}
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-dev-internal-token}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - vps-net
+    depends_on:
+      - vps
+
+  notification:
+    build:
+      context: ../..
+      dockerfile: services/notification/Dockerfile
+    environment:
+      PORT: "8004"
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_TLS: ${SMTP_TLS:-false}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@vps.local}
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-dev-internal-token}
+    networks:
+      - vps-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-worker:
+    build:
+      context: ../..
+      dockerfile: services/notification/Dockerfile
+    command: ["/worker"]
+    environment:
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_TLS: ${SMTP_TLS:-false}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@vps.local}
+    networks:
+      - vps-net
+    depends_on:
+      - notification
+
+  support:
+    build:
+      context: ../..
+      dockerfile: services/support/Dockerfile
+    environment:
+      PORT: "8005"
+      POSTGRES_DSN: postgres://${POSTGRES_USER:-vps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-vps_platform}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      ATTACHMENTS_DIR: /data/attachments
+      MAX_ATTACHMENT_BYTES: "10485760"
+      NOTIFICATION_SERVICE_URL: http://notification:8004
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-dev-internal-token}
+    volumes:
+      - support_attachments:/data/attachments
+    networks:
+      - vps-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-vps_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vps}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vps-net
+
+  redis:
+    image: redis:7-alpine
+    # No host port — 6379 often taken on Windows; services use redis:6379 inside vps-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vps-net
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - vps-net
+
+networks:
+  vps-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  support_attachments:

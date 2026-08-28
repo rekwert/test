@@ -1,0 +1,39 @@
+services:
+  traefik:
+    image: traefik:v3.4
+    restart: unless-stopped
+    command:
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/acme/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_acme:/acme
+    environment:
+      DOMAIN: ${DOMAIN}
+
+  web:
+    image: ghcr.io/borishru-boop/testvps-trade-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      YANDEX_METRIKA_OAUTH_TOKEN: ${YANDEX_METRIKA_OAUTH_TOKEN:-}
+      STAFF_COOKIE_HMAC_KEY: ${STAFF_COOKIE_HMAC_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+
+  reseller-api-static:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./reseller-api-static:/usr/share/nginx/html:ro
+      - ./reseller-api-static/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  traefik_acme:

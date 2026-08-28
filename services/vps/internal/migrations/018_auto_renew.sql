@@ -1,0 +1,2 @@
+ALTER TABLE vps.instances
+    ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN NOT NULL DEFAULT true;

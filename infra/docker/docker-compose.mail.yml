@@ -1,0 +1,26 @@
+services:
+  poste:
+    image: analogic/poste.io:latest
+    container_name: poste
+    restart: unless-stopped
+    hostname: ${POSTE_HOSTNAME}
+    ports:
+      - "25:25"
+      - "80:80"
+      - "443:443"
+      - "587:587"
+      - "465:465"
+      - "993:993"
+      - "995:995"
+      - "110:110"
+      - "143:143"
+    volumes:
+      - poste_data:/data
+      - poste_logs:/var/log
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+      DISABLE_CLAMAV: ${DISABLE_CLAMAV:-1}
+
+volumes:
+  poste_data:
+  poste_logs:

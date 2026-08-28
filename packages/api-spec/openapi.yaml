@@ -1,0 +1,317 @@
+openapi: 3.0.3
+info:
+  title: testVPStrade API
+  version: 1.0.0
+  description: VPS hosting platform control plane API
+
+servers:
+  - url: /api/v1
+
+paths:
+  /health:
+    get:
+      summary: Gateway health
+      tags: [system]
+      responses:
+        "200":
+          description: OK
+
+  /auth/register:
+    post:
+      summary: Register new client
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201":
+          description: Created
+
+  /auth/login:
+    post:
+      summary: Login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: OK
+
+  /auth/refresh:
+    post:
+      summary: Refresh tokens
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: OK
+
+  /auth/verify-email:
+    post:
+      summary: Verify email with 6-digit code
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+  /auth/forgot-password:
+    post:
+      summary: Request password reset code
+      tags: [auth]
+      responses:
+        "200":
+          description: OK
+
+  /auth/me:
+    get:
+      summary: Current user
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+  /plans:
+    get:
+      summary: List plans
+      tags: [plans]
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create plan (admin)
+      tags: [plans]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Created
+
+  /orders:
+    post:
+      summary: Create VPS order
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_id, os_template_id]
+              properties:
+                plan_id: { type: string, format: uuid }
+                region: { type: string, default: moscow }
+                hostname: { type: string }
+                os_template_id: { type: string }
+                software_profile_id: { type: string, default: clean }
+      responses:
+        "201":
+          description: Created
+
+  /catalog:
+    get:
+      summary: Full OS and software catalog
+      tags: [catalog]
+      responses:
+        "200":
+          description: OK
+
+  /catalog/os:
+    get:
+      summary: List OS templates
+      tags: [catalog]
+      responses:
+        "200":
+          description: OK
+
+  /catalog/os/{os_id}/software:
+    get:
+      summary: Software profiles for OS
+      tags: [catalog]
+      parameters:
+        - name: os_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+
+  /instances:
+    get:
+      summary: List instances
+      tags: [instances]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+  /instances/{id}:
+    get:
+      summary: Get instance
+      tags: [instances]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+
+  /instances/{id}/start:
+    post:
+      summary: Start instance
+      tags: [instances]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Accepted
+
+  /instances/{id}/stop:
+    post:
+      summary: Stop instance
+      tags: [instances]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Accepted
+
+  /instances/{id}/reboot:
+    post:
+      summary: Reboot instance
+      tags: [instances]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Accepted
+
+  /instances/{id}/addons:
+    post:
+      summary: Add addon (extra IP)
+      tags: [instances]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: string, enum: [extra_ip] }
+      responses:
+        "202":
+          description: Accepted
+
+  /billing/balance:
+    get:
+      summary: Get balance
+      tags: [billing]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+  /billing/topup:
+    post:
+      summary: Top up balance (mock)
+      tags: [billing]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+
+  /webhooks/payment:
+    post:
+      summary: Payment webhook
+      tags: [billing]
+      responses:
+        "200":
+          description: OK
+
+  /admin/users:
+    get:
+      summary: List users
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+  /admin/instances:
+    get:
+      summary: List all instances
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+  /admin/audit:
+    get:
+      summary: Audit log
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

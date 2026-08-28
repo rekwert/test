@@ -1,0 +1,31 @@
+http:
+  routers:
+    api:
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      entryPoints:
+        - websecure
+      service: back-gateway
+      tls:
+        certResolver: le
+      priority: 100
+
+    api-http:
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-https
+      service: back-gateway
+      priority: 100
+
+  middlewares:
+    redirect-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    back-gateway:
+      loadBalancer:
+        servers:
+          - url: "${BACK_GATEWAY_URL}"
