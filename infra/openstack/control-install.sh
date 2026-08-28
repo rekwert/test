@@ -29,10 +29,13 @@ case "$CODENAME" in
 
     SUNBEAM_HOME="$(getent passwd "$SUNBEAM_USER" | cut -d: -f6)"
     OPENRC="$SUNBEAM_HOME/demo-openrc"
+    RUN_AS="$SCRIPT_DIR/sunbeam-run-as-user.sh"
+    chmod +x "$RUN_AS"
 
-    su - "$SUNBEAM_USER" -c 'export PATH="/snap/bin:$PATH"; sunbeam prepare-node-script --bootstrap | bash -x'
-    su - "$SUNBEAM_USER" -c 'export PATH="/snap/bin:$PATH"; sg snap_daemon -c "sunbeam cluster bootstrap --accept-defaults"'
-    su - "$SUNBEAM_USER" -c "export PATH=\"/snap/bin:\$PATH\"; sunbeam configure --accept-defaults --openrc \"$OPENRC\""
+    # Do NOT use su -c: snap/sunbeam needs a real user session (systemd + DBus).
+    "$RUN_AS" 'sunbeam prepare-node-script --bootstrap | bash -x'
+    "$RUN_AS" 'sunbeam cluster bootstrap --accept-defaults'
+    "$RUN_AS" "sunbeam configure --accept-defaults --openrc \"$OPENRC\""
 
     install -m 600 "$OPENRC" /root/demo-openrc
     # shellcheck disable=SC1091
