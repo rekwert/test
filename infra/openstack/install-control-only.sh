@@ -22,6 +22,18 @@ echo "hostname: $(hostname -f)"
 echo "MemTotal: $(grep MemTotal /proc/meminfo)"
 echo "public IP: $(curl -s --max-time 5 ifconfig.me || echo unknown)"
 
+# Clean previous partial Sunbeam attempts.
+for s in openstack juju lxd; do
+  snap remove --purge "$s" 2>/dev/null || true
+done
+pkill -u sunbeam 2>/dev/null || true
+userdel -r sunbeam 2>/dev/null || true
+rm -rf /home/sunbeam /var/snap/lxd /var/snap/openstack /var/snap/juju
+
+sysctl -w net.ipv4.ip_forward=1
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ipforward.conf
+sysctl -p /etc/sysctl.d/99-ipforward.conf || true
+
 apt-get update -qq
 apt-get install -y -qq snapd curl git tmux systemd-container
 systemctl enable --now snapd.socket
@@ -29,6 +41,10 @@ sleep 5
 
 rm -rf "$REPO"
 git clone --depth 1 "${OPENSTACK_REPO:-https://github.com/rekwert/test.git}" "$REPO"
+
+# Long-running install — avoid SSH timeout killing juju bootstrap.
+export JUJU_CONTROLLER_AGENT_TIMEOUT=1800
+export JUJU_BOOTSTRAP_TIMEOUT=1800
 
 # Sunbeam user + SSH localhost runner (snap cgroup safe)
 useradd -m -s /bin/bash sunbeam 2>/dev/null || true
