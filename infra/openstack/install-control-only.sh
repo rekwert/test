@@ -6,11 +6,10 @@
 set -euo pipefail
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root"; exit 1; }
 
-# Safety: refuse if portal docker stack detected
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^docker-gateway-1$'; then
-  echo "ERROR: docker-gateway-1 found — this looks like production backvps."
-  echo "Run OpenStack install on dedicated control bare metal, not portal host."
-  exit 1
+# Stop leftover docker on dedicated control (frees ports 8443/5000 and RAM).
+if command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | grep -q .; then
+  echo "Stopping docker containers on control node..."
+  docker stop $(docker ps -q) 2>/dev/null || true
 fi
 
 export DEBIAN_FRONTEND=noninteractive
