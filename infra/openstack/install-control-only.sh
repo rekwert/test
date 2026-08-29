@@ -47,8 +47,14 @@ export JUJU_CONTROLLER_AGENT_TIMEOUT=1800
 export JUJU_BOOTSTRAP_TIMEOUT=1800
 
 # Sunbeam user + SSH localhost runner (snap cgroup safe)
-useradd -m -s /bin/bash sunbeam 2>/dev/null || true
+if id sunbeam >/dev/null 2>&1; then
+  pkill -u sunbeam 2>/dev/null || true
+  userdel -r sunbeam 2>/dev/null || true
+fi
+useradd -m -s /bin/bash sunbeam
 usermod -aG sudo sunbeam
+chown -R sunbeam:sunbeam /home/sunbeam
+chmod 755 /home/sunbeam
 echo 'sunbeam ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-sunbeam
 chmod 440 /etc/sudoers.d/90-sunbeam
 loginctl enable-linger sunbeam
