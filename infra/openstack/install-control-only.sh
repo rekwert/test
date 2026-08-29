@@ -33,6 +33,8 @@ rm -rf /home/sunbeam /var/snap/lxd /var/snap/openstack /var/snap/juju
 sysctl -w net.ipv4.ip_forward=1
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ipforward.conf
 sysctl -p /etc/sysctl.d/99-ipforward.conf || true
+modprobe br_netfilter 2>/dev/null || true
+sysctl -w net.bridge.bridge-nf-call-iptables=1 2>/dev/null || true
 
 apt-get update -qq
 apt-get install -y -qq snapd curl git tmux systemd-container
@@ -75,6 +77,10 @@ run_as_sunbeam() {
 }
 
 snap install openstack --channel=2024.1/stable || snap install openstack
+# LXD needs network plugs for container DHCP/NAT.
+snap connect lxd:network-control 2>/dev/null || true
+snap connect lxd:network-bind 2>/dev/null || true
+snap connect lxd:firewall 2>/dev/null || true
 
 echo "=== prepare-node ==="
 run_as_sunbeam "bash $REPO/infra/openstack/sunbeam-prepare.sh"
