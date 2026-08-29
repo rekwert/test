@@ -28,6 +28,15 @@ fi
 cd "$REPO"
 git pull -q
 
+# Sunbeam requires a non-root user with sudo.
+if ! id "$SUNBEAM_USER" &>/dev/null; then
+  useradd -m -s /bin/bash "$SUNBEAM_USER"
+  usermod -aG sudo "$SUNBEAM_USER"
+  echo "${SUNBEAM_USER} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/90-${SUNBEAM_USER}-sunbeam"
+  chmod 440 "/etc/sudoers.d/90-${SUNBEAM_USER}-sunbeam"
+fi
+loginctl enable-linger "$SUNBEAM_USER" 2>/dev/null || true
+
 # Ensure machinectl fallback: localhost SSH key for sunbeam.
 KEY="/root/.ssh/id_ed25519_sunbeam_local"
 if [[ ! -f "$KEY" ]]; then
