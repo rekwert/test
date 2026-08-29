@@ -83,7 +83,18 @@ snap connect lxd:network-bind 2>/dev/null || true
 snap connect lxd:firewall 2>/dev/null || true
 
 echo "=== prepare-node ==="
-run_as_sunbeam "bash $REPO/infra/openstack/sunbeam-prepare.sh"
+# Juju bootstrap needs manual LXD net fix on some hosts (no DHCP in controller container).
+(
+  while true; do
+    sleep 15
+    bash "$REPO/infra/openstack/fix-juju-lxd-net.sh" >/dev/null 2>&1 || true
+  done
+) &
+FIX_PID=$!
+run_as_sunbeam "bash $REPO/infra/openstack/sunbeam-prepare.sh" || PREPARE_RC=$?
+kill "$FIX_PID" 2>/dev/null || true
+wait "$FIX_PID" 2>/dev/null || true
+[[ "${PREPARE_RC:-0}" -eq 0 ]]
 
 echo "=== cluster bootstrap ==="
 run_as_sunbeam "sunbeam cluster bootstrap --accept-defaults"
