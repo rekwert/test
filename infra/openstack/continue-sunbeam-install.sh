@@ -11,6 +11,20 @@ exec > >(tee -a "$LOG") 2>&1
 
 echo "=== $(date -Is) continue Sunbeam install ==="
 
+# OpenStack snap (Sunbeam).
+if ! snap list openstack >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq snapd curl git tmux
+  systemctl enable --now snapd.socket
+  sleep 5
+  snap install openstack --channel=2024.1/stable || snap install openstack
+fi
+
+if [[ ! -d "$REPO/.git" ]]; then
+  git clone --depth 1 "${OPENSTACK_REPO:-https://github.com/rekwert/test.git}" "$REPO"
+fi
+
 cd "$REPO"
 git pull -q
 
