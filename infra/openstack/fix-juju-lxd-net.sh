@@ -4,8 +4,8 @@ set -euo pipefail
 [[ "$(id -u)" -eq 0 ]] || exit 1
 
 SUBNET="$(sudo -u sunbeam lxc network get lxdbr0 ipv4.address 2>/dev/null || true)"
-GW="${SUBNET%/*}.1"
-IP="${SUBNET%/*}.50"
+GW="${SUBNET%/*}"
+IP="${GW%.*}.50"
 CONTAINER="$(sudo -u sunbeam lxc list -c n --format csv 2>/dev/null | grep '^juju-' | head -1 || true)"
 
 if [[ -z "$CONTAINER" ]]; then
